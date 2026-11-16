@@ -6,14 +6,40 @@ itself from your wallpaper through [matugen](https://github.com/InioX/matugen).
 
 It also replaces your notification daemon, so you don't need mako, dunst or swaync.
 
-Built and tested on Arch Linux with Hyprland 0.57 and Quickshell 0.3.2. It works with either
+Built and tested on Arch Linux with Hyprland 0.57 and Quickshell 0.3.2, on a six-monitor setup with the
+split-monitor-workspaces plugin, so every screen gets its own bar and its own workspaces. It works with either
 `hyprland.conf` or the newer `hyprland.lua` config.
+
+![Pillbox on a 1440p monitor](screenshots/desktop.jpg)
+
+<p align="center">
+  <img src="screenshots/bar-left.png" alt="Left side of the bar: workspaces and now playing" width="49%">
+  <img src="screenshots/bar-right.png" alt="Right side of the bar: privacy, tools, stats, keyboard layout, volume" width="49%">
+</p>
+
+## Screenshots
+
+| | |
+|:---:|:---:|
+| ![System stats panel](screenshots/stats.png) | ![Sound panel](screenshots/audio.png) |
+| **System stats**: CPU, GPU, RAM and disk with live graphs | **Sound**: outputs, inputs and per-app volume |
+| ![Snapshots panel](screenshots/snapshots.png) | ![Timer panel](screenshots/timer.png) |
+| **Snapshots**: snapper history, diff, snapshot now, restore | **Timer / Pomodoro** |
+
+![Clock panel](screenshots/clock.png)
+**Clock**: calendar, local time format and a second time zone
+
+![Wallpaper picker](screenshots/wallpaper.png)
+**Wallpaper picker**: click a wallpaper and the whole desktop re-themes from it
+
+![Keybind cheat sheet](screenshots/cheatsheet.png)
+**Keybind cheat sheet** (SUPER + /), built from your Hyprland binds
 
 ## Features
 
 | Pill | What it does |
 |---|---|
-| **Workspaces** | Per-monitor workspaces with app icons; click to switch |
+| **Workspaces** | Each monitor's own workspaces with app icons; click or scroll to switch. Built for the [split-monitor-workspaces](https://github.com/zjeffer/split-monitor-workspaces) plugin, which gives every monitor its own set of workspaces numbered 1–10, and the pills match that. Without the plugin it shows the workspaces on each monitor |
 | **Clock** | Local time plus an optional second time zone. Click for a calendar and settings |
 | **Timer / Pomodoro** | Countdown or Pomodoro cycles with a progress ring and an alarm. Middle-click pauses, right-click stops |
 | **Media** | Now playing (MPRIS) with a player panel |
@@ -81,6 +107,7 @@ Without these the bar still runs; only the matching feature is missing (several 
 
 | Feature | Packages |
 |---|---|
+| Separate workspaces 1–10 on every monitor | [split-monitor-workspaces](https://github.com/zjeffer/split-monitor-workspaces) Hyprland plugin (install with `hyprpm add https://github.com/zjeffer/split-monitor-workspaces`) |
 | Colours from your wallpaper | `matugen` |
 | Wallpaper picker | `imagemagick` (thumbnails; `ffmpeg` also works), plus `hyprpaper` or `swww` / `awww` / `swaybg` |
 | Updates panel | `pacman-contrib` (checkupdates); `paru` or `yay` for AUR updates |
