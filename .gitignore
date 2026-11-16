@@ -1,0 +1,6 @@
+# Per-user state, written by the bar
+settings.json
+# Separate project (JamDon2/hyprquickshot), not part of Pillbox
+hyprquickshot/
+*.bak*
+__pycache__/

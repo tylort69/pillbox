@@ -1,0 +1,4 @@
+# Add this to ~/.config/matugen/config.toml (install.sh does it for you).
+[templates.quickshell]
+input_path = "~/.config/quickshell/matugen/quickshell-colors.json"
+output_path = "~/.cache/quickshell-colors.json"
