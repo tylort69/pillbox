@@ -42,7 +42,7 @@ Scope {
     Process {
         id: updateProc
         command: theme.term("system-update", "System update", ["sh", "-c",
-                  "h=$(command -v paru || command -v yay) || h='sudo pacman'; $h -Syu; echo; read -r -p 'Done. Press Enter to close.' _"])
+                  "h=$(command -v paru || command -v yay) || h='sudo pacman'; f=\"$HOME/.config/fish/scripts/fira-progress.py\"; [ -f \"$f\" ] && h=\"python3 -I $f $h\"; $h -Syu; echo; read -r -p 'Done. Press Enter to close.' _"])
         onExited: { upd.updating = false; upd.check() }
     }
     function updateAll() { if (updating) return; updating = true; panelScreen = null; updateProc.running = true }
