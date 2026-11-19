@@ -58,7 +58,7 @@ split-monitor-workspaces plugin, so every screen gets its own bar and its own wo
 | **Night light** | hyprsunset on/off, warmer/cooler |
 | **Lock keys** | Caps Lock / Num Lock indicators |
 | **Keybind cheat sheet** | Every Hyprland bind that has a description, searchable |
-| **Power** | Opens wlogout |
+| **Start menu** | The Arch button. All apps A–Z with icons; one search box for apps and every file and folder in your home (fuzzy, or regex with Ctrl+R). Ctrl+F also searches inside files and logs (your home, `/var/log`, plus a one-click journal search); the gear chip (Ctrl+O) sets which files (text, text + logs, or all), a size limit, hidden folders and the text file types; a hotbar with your default terminal, file manager and browser; pinned apps, files and folders, plus your own named groups. Right-click anything to pin it, group it, reorder it or run an app action. Right-click the Arch button for the power menu (wlogout) |
 | **Bar settings** | Gear icon: put the bar on the top, bottom, left or right edge, and mirror the pill order. On the sides the bar is narrower: titles are hidden and the clock stacks |
 
 ## Install
@@ -119,12 +119,13 @@ Without these the bar still runs; only the matching feature is missing (several 
 | GPU stats | `nvidia-utils` (`nvidia-smi`). On other GPUs the GPU pill hides itself |
 | Timer alarm sound | `sound-theme-freedesktop`, `pipewire-audio` (`pw-play`) |
 | Restart / Clear in the services panel | A polkit agent, e.g. `hyprpolkitagent` |
+| Start menu search | `fd`, `fzf`; `ripgrep` for searching inside files |
 | Launcher buttons | `btop`, `nvtop`, `wiremix`, `pavucontrol`, `wlogout`, `yazi`, `clipse` (AUR) + `wl-clipboard` |
 | A terminal | Any of foot, kitty, alacritty, ghostty, wezterm, konsole, gnome-terminal or xterm. Detected automatically, or set `$TERMINAL` or `"terminal"` in `settings.json` |
 
 ## Configuration
 
-- **`settings.json`** (created next to `shell.qml` the first time you change something) stores clocks, DND profiles, Pomodoro lengths, pinned tray items, bar position (`barPosition`: `top`/`bottom`/`left`/`right`, `barMirror`), `terminal` and `wallpaperDir`. Most of these can be changed from the panels themselves.
+- **`settings.json`** (created next to `shell.qml` the first time you change something) stores clocks, DND profiles, Pomodoro lengths, pinned tray items, bar position (`barPosition`: `top`/`bottom`/`left`/`right`, `barMirror`), start menu pins and groups (`startPins`, `startGroups`, `startSearchMode`, `startSearchContents`, `startSearchOptions`), `terminal` and `wallpaperDir`. Most of these can be changed from the panels themselves.
 - **Colours**: `matugen/quickshell-colors.json` is the matugen template, written to `~/.cache/quickshell-colors.json`. The bar picks up changes live. Without matugen it uses a built-in palette.
 - **Wallpapers** are read from `~/Pictures/Wallpapers` (or `wallpaperDir`). Picking one runs `scripts/set-wallpaper.sh`. That script sets the wallpaper with your daemon, points `~/.cache/current-wallpaper` at it (handy for hyprlock), then runs `~/.config/matugen/apply.sh` if you have one, or `matugen image` otherwise.
 - **Size, font, margins**: properties at the top of `shell.qml` (`barHeight`, `fontFamily`, `cornerRadius`, …).
@@ -144,6 +145,7 @@ Every panel can be driven from keybinds with `qs ipc call <target> <function>`:
 | `wallpaper` | `toggle`, `random` |
 | `keyboard` | `next` |
 | `bar` | `toggle` (settings panel), `position <top\|bottom\|left\|right>`, `mirror <true\|false>` |
+| `start` | `toggle`, `pin <desktop-id or /path> <group>` (empty group = Pinned) |
 | `night` | `toggle`, `warmer`, `cooler` |
 | `updates`, `services` | `toggle`, `check` |
 | `clock`, `stats`, `network`, `bluetooth`, `snapshots`, `tray` | `toggle` |

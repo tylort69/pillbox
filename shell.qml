@@ -111,6 +111,12 @@ ShellRoot {
             property string wallpaperDir: ""        // "" = ~/Pictures/Wallpapers
             property string barPosition: "top"      // top | bottom | left | right
             property bool barMirror: false          // reverse the pill order along the bar
+            // Start menu (StartMenu.qml): pinned items, named groups, search mode
+            property var startPins: []              // [{ kind: "app", id } | { kind: "path", path, dir }]
+            property var startGroups: []            // [{ name, items: [...] }]
+            property string startSearchMode: "fuzzy" // fuzzy | regex
+            property bool startSearchContents: false // also search inside files (ripgrep)
+            property var startSearchOptions: ({})   // { scope, maxMB, hidden, systemLogs, journal, exts }; gear chip in the menu
             // Clocks (click the time in the bar to change these)
             property var clockLocal: ({ precision: "hm", hour24: true, showDate: false, dateFormat: "ddd d MMM" })
             property var clockAlt: ({ enabled: false, label: "UTC", zone: "UTC",
@@ -269,8 +275,16 @@ ShellRoot {
     }
 
     // Every module with a panel. Opening one closes the others (and the notification history).
+    // ── Start menu: apps, file search, pins and groups (StartMenu.qml, Arch button) ─
+    StartMenu {
+        id: startMenu
+        theme: root
+        settings: settings
+        onPanelScreenChanged: if (panelScreen !== null) root.closeOthers(startMenu)
+    }
+
     readonly property var panels: [audio, clocks, media, tray, network, bt, stats, updates,
-                                   wallpapers, snapshots, services, countdown, keyboard, barSettings]
+                                   wallpapers, snapshots, services, countdown, keyboard, barSettings, startMenu]
     function closeOthers(keep) {
         if (keep !== notifs) notifs.historyScreen = null
         for (const p of panels) {
@@ -1307,29 +1321,34 @@ ShellRoot {
                             }
                         }
 
-                        // Power: opens the Material You power menu (same as SUPER + Esc)
+                        // Start menu (StartMenu.qml). Right-click: the Material You power menu (same as SUPER + Esc)
                         Rectangle {
+                            readonly property bool open: startMenu.panelScreen === barWindow.modelData
                             rotation: root.flip
                             Layout.alignment: Qt.AlignCenter
                             implicitWidth: root.pillSize
                             implicitHeight: 26
                             radius: Math.min(width, height) / 2
-                            color: pwrMouse.containsMouse ? Qt.alpha(root.clrUrgent, 0.18) : "transparent"
+                            color: open ? root.clrAccentC : pwrMouse.containsMouse ? Qt.alpha(root.clrFg, 0.1) : "transparent"
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
-                                Layout.alignment: Qt.AlignCenter
                                 anchors.centerIn: parent
-                                text: "󰐥"
+                                text: "󰣇"
                                 font.family: root.fontFamily
-                                font.pixelSize: root.fontSize + 2
-                                color: pwrMouse.containsMouse ? root.clrUrgent : root.clrFg
+                                font.pixelSize: root.fontSize + 3
+                                color: parent.open ? root.clrOnAccentC : pwrMouse.containsMouse ? root.clrAccent : root.clrFg
                             }
                             MouseArea {
                                 id: pwrMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Quickshell.execDetached(["sh", "-c", "[ -x ~/.config/wlogout/launch.sh ] && exec ~/.config/wlogout/launch.sh || exec wlogout"])
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton)
+                                        Quickshell.execDetached(["sh", "-c", "[ -x ~/.config/wlogout/launch.sh ] && exec ~/.config/wlogout/launch.sh || exec wlogout"])
+                                    else startMenu.togglePanel(barWindow.modelData)
+                                }
                             }
                         }
                     }
