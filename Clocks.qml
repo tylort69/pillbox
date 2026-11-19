@@ -422,8 +422,9 @@ Scope {
         id: clockPanel
         screen: clocks.panelScreen ?? Quickshell.screens[0]
         visible: clocks.panelScreen !== null
-        anchors { top: true }
-        margins { top: theme.barHeight + theme.barMarginTop + 10 }
+        // Opens beside the bar wherever it is (shell.qml: edge / gap)
+        anchors { top: theme.edge("top", "center"); bottom: theme.edge("bottom", "center"); left: theme.edge("left", "center"); right: theme.edge("right", "center") }
+        margins { top: theme.gap("top", "center"); bottom: theme.gap("bottom", "center"); left: theme.gap("left", "center"); right: theme.gap("right", "center") }
         implicitWidth: cards.implicitWidth + 32
         implicitHeight: cards.implicitHeight + 32
         color: "transparent"

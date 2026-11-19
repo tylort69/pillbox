@@ -133,8 +133,9 @@ Scope {
         id: cdPanel
         screen: cd.panelScreen ?? Quickshell.screens[0]
         visible: cd.panelScreen !== null
-        anchors { top: true }
-        margins { top: theme.barHeight + theme.barMarginTop + 10 }
+        // Opens beside the bar wherever it is (shell.qml: edge / gap)
+        anchors { top: theme.edge("top", "center"); bottom: theme.edge("bottom", "center"); left: theme.edge("left", "center"); right: theme.edge("right", "center") }
+        margins { top: theme.gap("top", "center"); bottom: theme.gap("bottom", "center"); left: theme.gap("left", "center"); right: theme.gap("right", "center") }
         implicitWidth: 480
         implicitHeight: body.implicitHeight + 32
         color: "transparent"

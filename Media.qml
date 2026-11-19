@@ -108,8 +108,9 @@ Scope {
         id: mediaPanel
         screen: media.panelScreen ?? Quickshell.screens[0]
         visible: media.panelScreen !== null && media.player !== null
-        anchors { top: true; left: true }
-        margins { top: theme.barHeight + theme.barMarginTop + 10; left: theme.barMarginSide + 6 }
+        // Opens beside the bar wherever it is (shell.qml: edge / gap)
+        anchors { top: theme.edge("top", "start"); bottom: theme.edge("bottom", "start"); left: theme.edge("left", "start"); right: theme.edge("right", "start") }
+        margins { top: theme.gap("top", "start"); bottom: theme.gap("bottom", "start"); left: theme.gap("left", "start"); right: theme.gap("right", "start") }
         implicitWidth: 460
         implicitHeight: body.implicitHeight + 40
         color: "transparent"

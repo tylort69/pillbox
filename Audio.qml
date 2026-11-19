@@ -177,8 +177,9 @@ Scope {
         id: audioPanel
         screen: audio.panelScreen ?? Quickshell.screens[0]
         visible: audio.panelScreen !== null
-        anchors { top: true; right: true }
-        margins { top: theme.barHeight + theme.barMarginTop + 10; right: theme.barMarginSide + 6 }
+        // Opens beside the bar wherever it is (shell.qml: edge / gap)
+        anchors { top: theme.edge("top", "end"); bottom: theme.edge("bottom", "end"); left: theme.edge("left", "end"); right: theme.edge("right", "end") }
+        margins { top: theme.gap("top", "end"); bottom: theme.gap("bottom", "end"); left: theme.gap("left", "end"); right: theme.gap("right", "end") }
         implicitWidth: 420
         implicitHeight: Math.min(body.implicitHeight + 32, (screen?.height ?? 1080) * 0.8)
         color: "transparent"

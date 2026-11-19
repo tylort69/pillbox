@@ -10,10 +10,32 @@ import Quickshell.Widgets
 ShellRoot {
     id: root
 
-    readonly property int barHeight: 34
+    // ── Bar position (BarSettings.qml): settings.barPosition = top | bottom | left | right,
+    //    settings.barMirror reverses the pill order (right-to-left / bottom-to-top) ─────────
+    readonly property string barPosition: ["top", "bottom", "left", "right"].includes(settings.barPosition) ? settings.barPosition : "top"
+    readonly property bool vertical: barPosition === "left" || barPosition === "right"
+    readonly property bool mirror: settings.barMirror
+    readonly property int flip: vertical && mirror ? 180 : 0  // vertical mirror: column turned over, pills turned back upright
+    readonly property int barHeight: vertical ? 40 : 34     // bar thickness (its width when vertical)
+    readonly property int pillSize: vertical ? 32 : 26      // a pill's size across the bar
     property var barWindows: []          // all bar windows; clicks on them never close a panel
-    readonly property int barMarginTop: 6
-    readonly property int barMarginSide: 10
+    readonly property int barMarginTop: 6                   // gap between the bar and its screen edge
+    readonly property int barMarginSide: 10                 // gap at the two ends of the bar
+    function barAnchored(e) { return e === barPosition || (vertical ? e === "top" || e === "bottom" : e === "left" || e === "right") }
+    function barMargin(e) { return e === barPosition ? barMarginTop : barAnchored(e) ? barMarginSide : 0 }
+
+    // Panels open beside the bar. align = where along the bar the panel belongs: "start" (left /
+    // top), "center" or "end" (right / bottom), flipped when mirrored.
+    // edge(): should the panel anchor to screen edge e? gap(): its margin from that edge.
+    function edge(e, align) {
+        if (e === barPosition) return true
+        if (mirror) align = align === "start" ? "end" : align === "end" ? "start" : align
+        return (align === "start" && e === (vertical ? "top" : "left"))
+            || (align === "end" && e === (vertical ? "bottom" : "right"))
+    }
+    function gap(e, align) {
+        return e === barPosition ? barHeight + barMarginTop + 10 : edge(e, align) ? barMarginSide + 6 : 0
+    }
     readonly property int cornerRadius: 17          // full pill, Material You style
     readonly property string fontFamily: "FiraCode Nerd Font Mono"
     readonly property int fontSize: 13
@@ -87,6 +109,8 @@ ShellRoot {
             property bool showReykjavik: false      // old setting, migrated into clockAlt.enabled
             property string terminal: ""            // "" = $TERMINAL or auto-detect (foot, kitty, alacritty, …)
             property string wallpaperDir: ""        // "" = ~/Pictures/Wallpapers
+            property string barPosition: "top"      // top | bottom | left | right
+            property bool barMirror: false          // reverse the pill order along the bar
             // Clocks (click the time in the bar to change these)
             property var clockLocal: ({ precision: "hm", hour24: true, showDate: false, dateFormat: "ddd d MMM" })
             property var clockAlt: ({ enabled: false, label: "UTC", zone: "UTC",
@@ -236,9 +260,17 @@ ShellRoot {
         onPanelScreenChanged: if (panelScreen !== null) root.closeOthers(keyboard)
     }
 
+    // ── Bar settings: position + mirrored order (BarSettings.qml, gear icon on the bar) ─
+    BarSettings {
+        id: barSettings
+        theme: root
+        settings: settings
+        onPanelScreenChanged: if (panelScreen !== null) root.closeOthers(barSettings)
+    }
+
     // Every module with a panel. Opening one closes the others (and the notification history).
     readonly property var panels: [audio, clocks, media, tray, network, bt, stats, updates,
-                                   wallpapers, snapshots, services, countdown, keyboard]
+                                   wallpapers, snapshots, services, countdown, keyboard, barSettings]
     function closeOthers(keep) {
         if (keep !== notifs) notifs.historyScreen = null
         for (const p of panels) {
@@ -322,17 +354,21 @@ ShellRoot {
                 root.focusWorkspace(list[i].name)
             }
 
-            anchors { top: true; left: true; right: true }
+            anchors {
+                top: root.barAnchored("top"); bottom: root.barAnchored("bottom")
+                left: root.barAnchored("left"); right: root.barAnchored("right")
+            }
             margins {
-                top: root.barMarginTop
-                left: root.barMarginSide
-                right: root.barMarginSide
+                top: root.barMargin("top"); bottom: root.barMargin("bottom")
+                left: root.barMargin("left"); right: root.barMargin("right")
             }
 
-            implicitHeight: root.barHeight
+            implicitHeight: root.vertical ? 0 : root.barHeight
+            implicitWidth: root.vertical ? root.barHeight : 0
             color: "transparent"
 
             Rectangle {
+                Layout.alignment: Qt.AlignCenter
                 anchors.fill: parent
                 color: root.clrBg
                 radius: root.cornerRadius
@@ -340,17 +376,26 @@ ShellRoot {
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: 250 } }
 
-                RowLayout {
+                GridLayout {
+                    Layout.alignment: Qt.AlignCenter
+                    flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                    layoutDirection: root.mirror && !root.vertical ? Qt.RightToLeft : Qt.LeftToRight
+                    rotation: root.flip
                     anchors.fill: parent
-                    anchors.leftMargin: 6
-                    anchors.rightMargin: 12
-                    spacing: 8
+                    anchors.leftMargin: root.vertical ? 4 : root.mirror ? 12 : 6
+                    anchors.rightMargin: root.vertical ? 4 : root.mirror ? 6 : 12
+                    anchors.topMargin: root.vertical ? 6 : 0
+                    anchors.bottomMargin: root.vertical ? 6 : 0
+                    rowSpacing: 8
+                    columnSpacing: 8
 
                     // ── Left: this monitor's workspaces ──────────────────────
                     Rectangle {
-                        implicitWidth: wsRow.implicitWidth + 8
-                        implicitHeight: 26
-                        radius: 13
+                        rotation: root.flip
+                        Layout.alignment: Qt.AlignCenter
+                        implicitWidth: root.vertical ? root.pillSize : wsRow.implicitWidth + 8
+                        implicitHeight: root.vertical ? wsRow.implicitHeight + 12 : 26
+                        radius: Math.min(width, height) / 2
                         color: root.clrBgAlt
 
                         MouseArea {
@@ -359,15 +404,19 @@ ShellRoot {
                             onWheel: (wheel) => barWindow.cycle(wheel.angleDelta.y > 0 ? -1 : 1)
                         }
 
-                        RowLayout {
+                        GridLayout {
+                            Layout.alignment: Qt.AlignCenter
+                            flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                             id: wsRow
                             anchors.centerIn: parent
-                            spacing: 2
+                            rowSpacing: 2
+                            columnSpacing: 2
 
                             Repeater {
                                 model: barWindow.monitorWorkspaces
 
                                 Rectangle {
+                                    Layout.alignment: Qt.AlignCenter
                                     id: wsPill
                                     required property var modelData
                                     required property int index
@@ -376,8 +425,8 @@ ShellRoot {
                                     readonly property bool isOccupied: (modelData.toplevels?.values?.length ?? 0) > 0
                                     readonly property bool isUrgent: modelData.urgent ?? false
 
-                                    implicitWidth: isActive ? 34 : 20
-                                    implicitHeight: 20
+                                    implicitWidth: !root.vertical && isActive ? 34 : 20
+                                    implicitHeight: root.vertical && isActive ? 34 : 20
                                     radius: 10
 
                                     color: isUrgent   ? root.clrUrgent
@@ -387,9 +436,11 @@ ShellRoot {
                                          : "transparent"
 
                                     Behavior on implicitWidth { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
                                     Text {
+                                        Layout.alignment: Qt.AlignCenter
                                         anchors.centerIn: parent
                                         text: wsPill.index === 9 ? "0" : (wsPill.index + 1)
                                         font.family: root.fontFamily
@@ -416,21 +467,27 @@ ShellRoot {
 
                     // Now playing: click = player panel, middle = play/pause, scroll = next/previous
                     Rectangle {
+                        rotation: root.flip
+                        Layout.alignment: Qt.AlignCenter
                         id: mediaPill
                         readonly property bool open: media.panelScreen === barWindow.modelData
                         visible: media.hasPlayer
-                        implicitWidth: mediaRow.implicitWidth + 16
-                        implicitHeight: 26
-                        radius: 13
+                        implicitWidth: root.vertical ? root.pillSize : mediaRow.implicitWidth + 16
+                        implicitHeight: root.vertical ? mediaRow.implicitHeight + 12 : 26
+                        radius: Math.min(width, height) / 2
                         clip: true
                         color: open ? root.clrAccentC : mediaMouse.containsMouse ? root.clrBgAlt : "transparent"
                         Behavior on color { ColorAnimation { duration: 150 } }
 
-                        RowLayout {
+                        GridLayout {
+                            Layout.alignment: Qt.AlignCenter
+                            flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                             id: mediaRow
                             anchors.centerIn: parent
-                            spacing: 8
+                            rowSpacing: 8
+                            columnSpacing: 8
                             ClippingRectangle {
+                                Layout.alignment: Qt.AlignCenter
                                 implicitWidth: 18; implicitHeight: 18; radius: 9
                                 color: root.clrAccentC
                                 Image {
@@ -442,7 +499,9 @@ ShellRoot {
                                 }
                             }
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 Layout.maximumWidth: 280
+                                visible: !root.vertical
                                 text: (media.player?.trackTitle ?? "") + (media.artist(media.player) ? "  ·  " + media.artist(media.player) : "")
                                 elide: Text.ElideRight
                                 font.family: root.fontFamily
@@ -450,6 +509,7 @@ ShellRoot {
                                 color: mediaPill.open ? root.clrOnAccentC : root.clrFg
                             }
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 text: media.player?.isPlaying ? "󰏤" : "󰐊"
                                 font.family: root.fontFamily
                                 font.pixelSize: root.fontSize + 1
@@ -458,6 +518,7 @@ ShellRoot {
                         }
                         // thin progress line along the bottom
                         Rectangle {
+                            Layout.alignment: Qt.AlignCenter
                             anchors { left: parent.left; bottom: parent.bottom; leftMargin: 10; bottomMargin: 2 }
                             height: 2; radius: 1
                             width: (parent.width - 20) * media.progress
@@ -480,18 +541,24 @@ ShellRoot {
                     }
 
                     // Active window: app icon + title
-                    RowLayout {
-                        visible: barWindow.shownWindow !== null && (barWindow.shownWindow.title ?? "") !== ""
+                    GridLayout {
+                        rotation: root.flip
+                        Layout.alignment: Qt.AlignCenter
+                        flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                        visible: !root.vertical && barWindow.shownWindow !== null && (barWindow.shownWindow.title ?? "") !== ""
                         Layout.maximumWidth: 420
                         Layout.leftMargin: 4
-                        spacing: 8
+                        rowSpacing: 8
+                        columnSpacing: 8
                         IconImage {
+                            Layout.alignment: Qt.AlignCenter
                             readonly property string cls: barWindow.shownWindow?.lastIpcObject?.class ?? barWindow.shownWindow?.wayland?.appId ?? ""
                             visible: source !== ""
                             source: root.appIcon(cls)
                             implicitSize: 16
                         }
                         Text {
+                            Layout.alignment: Qt.AlignCenter
                             Layout.fillWidth: true
                             Layout.maximumWidth: 390
                             text: barWindow.shownWindow?.title ?? ""
@@ -502,47 +569,58 @@ ShellRoot {
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Item { Layout.fillWidth: true; Layout.fillHeight: true }
 
                     // ── Center: clocks ───────────────────────────────────────
                     // Left-click: clock settings · Right-click: show/hide the second clock
                     Rectangle {
+                        rotation: root.flip
+                        Layout.alignment: Qt.AlignCenter
                         readonly property bool open: clocks.panelScreen === barWindow.modelData
-                        implicitWidth: clockRow.implicitWidth + 20
-                        implicitHeight: 26
-                        radius: 13
+                        implicitWidth: root.vertical ? root.pillSize : clockRow.implicitWidth + 20
+                        implicitHeight: root.vertical ? clockRow.implicitHeight + 12 : 26
+                        radius: Math.min(width, height) / 2
                         color: open ? root.clrAccentC : clockMouse.containsMouse ? root.clrBgAlt : "transparent"
                         Behavior on color { ColorAnimation { duration: 150 } }
 
-                        RowLayout {
+                        GridLayout {
+                            Layout.alignment: Qt.AlignCenter
+                            flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                             id: clockRow
                             anchors.centerIn: parent
-                            spacing: 10
+                            rowSpacing: 10
+                            columnSpacing: 10
 
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 font.family: root.fontFamily
                                 font.pixelSize: root.fontSize
                                 font.bold: true
                                 color: parent.parent.open ? root.clrOnAccentC : root.clrFg
-                                text: clocks.localText
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.vertical ? clocks.localText.replace(/[: ]+/g, "\n") : clocks.localText
                             }
 
                             Rectangle {
+                                Layout.alignment: Qt.AlignCenter
                                 visible: clocks.alt.enabled
-                                implicitWidth: altText.implicitWidth + 14
-                                implicitHeight: 20
+                                implicitWidth: root.vertical ? root.pillSize - 6 : altText.implicitWidth + 14
+                                implicitHeight: root.vertical ? altText.implicitHeight + 10 : 20
                                 radius: 10
                                 color: root.clrAccentC
                                 border.width: parent.parent.open ? 1 : 0
                                 border.color: root.clrOnAccentC
 
                                 Text {
+                                    Layout.alignment: Qt.AlignCenter
                                     id: altText
                                     anchors.centerIn: parent
                                     font.family: root.fontFamily
                                     font.pixelSize: root.fontSize - 2
                                     color: root.clrOnAccentC
-                                    text: (clocks.alt.label ? clocks.alt.label + " " : "") + clocks.altText
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: root.vertical ? clocks.altText.replace(/[: ]+/g, "\n")
+                                        : (clocks.alt.label ? clocks.alt.label + " " : "") + clocks.altText
                                 }
                             }
                         }
@@ -565,21 +643,27 @@ ShellRoot {
                     // Timer / Pomodoro: faint icon when idle, countdown while running.
                     // Click = panel · middle = pause/resume · right = stop
                     Rectangle {
+                        rotation: root.flip
+                        Layout.alignment: Qt.AlignCenter
                         readonly property bool open: countdown.panelScreen === barWindow.modelData
                         readonly property bool brk: countdown.mode === "pomodoro" && countdown.phase !== "work"
-                        implicitWidth: cdRow.implicitWidth + 16
-                        implicitHeight: 26
-                        radius: 13
+                        implicitWidth: root.vertical ? root.pillSize : cdRow.implicitWidth + 16
+                        implicitHeight: root.vertical ? cdRow.implicitHeight + 12 : 26
+                        radius: Math.min(width, height) / 2
                         clip: true
                         color: open ? root.clrAccentC
                              : countdown.active ? (brk ? root.clrTertC : root.clrBgAlt)
                              : cdMouse.containsMouse ? root.clrBgAlt : "transparent"
                         Behavior on color { ColorAnimation { duration: 150 } }
-                        RowLayout {
+                        GridLayout {
+                            Layout.alignment: Qt.AlignCenter
+                            flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                             id: cdRow
                             anchors.centerIn: parent
-                            spacing: 5
+                            rowSpacing: 5
+                            columnSpacing: 5
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 text: countdown.mode === "pomodoro" && countdown.active ? countdown.phaseInfo[countdown.phase].icon : "󱎫"
                                 font.family: root.fontFamily
                                 font.pixelSize: root.fontSize + 1
@@ -588,8 +672,10 @@ ShellRoot {
                                      : countdown.active ? root.clrAccent : root.clrFgMuted
                             }
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 visible: countdown.active
-                                text: countdown.fmt(countdown.left)
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.vertical ? countdown.fmt(countdown.left).replace(/:/g, "\n") : countdown.fmt(countdown.left)
                                 font.family: root.fontFamily
                                 font.pixelSize: root.fontSize - 1
                                 font.bold: true
@@ -599,6 +685,7 @@ ShellRoot {
                             }
                         }
                         Rectangle {
+                            Layout.alignment: Qt.AlignCenter
                             visible: countdown.active
                             anchors { left: parent.left; bottom: parent.bottom; leftMargin: 8; bottomMargin: 2 }
                             height: 2; radius: 1
@@ -619,50 +706,568 @@ ShellRoot {
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Item { Layout.fillWidth: true; Layout.fillHeight: true }
 
                     // ── Right: system tray, then notification bell ───────────
-                    RowLayout {
-                        spacing: 8
-                        layoutDirection: Qt.RightToLeft
-
-                        // Power: opens the Material You power menu (same as SUPER + Esc)
+                    GridLayout {
+                        Layout.alignment: Qt.AlignCenter
+                        flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                        rowSpacing: 8
+                        columnSpacing: 8
+                        // Privacy: shown while an app uses the mic, camera or screen
                         Rectangle {
-                            implicitWidth: 26
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            visible: privacy.active
+                            implicitWidth: root.vertical ? root.pillSize : privRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? privRow.implicitHeight + 12 : 24
+                            radius: Math.min(width, height) / 2
+                            color: Qt.alpha(root.clrUrgent, 0.22)
+                            border.width: 1
+                            border.color: root.clrUrgent
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: privRow
+                                anchors.centerIn: parent
+                                rowSpacing: 6
+                                columnSpacing: 6
+                                Text { Layout.alignment: Qt.AlignCenter; visible: privacy.mic.length > 0; text: "󰍬"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
+                                Text { Layout.alignment: Qt.AlignCenter; visible: privacy.camera.length > 0; text: "󰄀"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
+                                Text { Layout.alignment: Qt.AlignCenter; visible: privacy.screen.length > 0; text: "󰹑"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    Layout.maximumWidth: 160
+                                    visible: !root.vertical
+                                    text: privacy.apps.join(", ")
+                                    elide: Text.ElideRight
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2
+                                    color: root.clrFg
+                                }
+                            }
+                        }
+
+                        // Wallpaper picker, snapshots, bar settings
+                        Repeater {
+                            model: [
+                                { icon: "󰸉", mod: wallpapers },
+                                { icon: "󰁯", mod: snapshots },
+                                { icon: "󰒓", mod: barSettings }
+                            ]
+                            Rectangle {
+                                rotation: root.flip
+                                Layout.alignment: Qt.AlignCenter
+                                required property var modelData
+                                readonly property bool open: modelData.mod.panelScreen === barWindow.modelData
+                                implicitWidth: root.pillSize
+                                implicitHeight: 26
+                                radius: Math.min(width, height) / 2
+                                color: open ? root.clrAccentC : iconMouse.containsMouse ? root.clrBgAlt : "transparent"
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    anchors.centerIn: parent
+                                    text: modelData.icon
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: parent.open ? root.clrOnAccentC : root.clrFg
+                                }
+                                MouseArea {
+                                    id: iconMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: modelData.mod.togglePanel(barWindow.modelData)
+                                }
+                            }
+                        }
+
+                        // Clipboard history (clipse, also SUPER + SHIFT + V)
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            implicitWidth: root.pillSize
                             implicitHeight: 26
-                            radius: 13
-                            color: pwrMouse.containsMouse ? Qt.alpha(root.clrUrgent, 0.18) : "transparent"
+                            radius: Math.min(width, height) / 2
+                            color: clipMouse.containsMouse ? root.clrBgAlt : "transparent"
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
+                                Layout.alignment: Qt.AlignCenter
                                 anchors.centerIn: parent
-                                text: "󰐥"
+                                text: "󰅌"
                                 font.family: root.fontFamily
-                                font.pixelSize: root.fontSize + 2
-                                color: pwrMouse.containsMouse ? root.clrUrgent : root.clrFg
+                                font.pixelSize: root.fontSize + 1
+                                color: root.clrFg
                             }
                             MouseArea {
-                                id: pwrMouse
+                                id: clipMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Quickshell.execDetached(["sh", "-c", "[ -x ~/.config/wlogout/launch.sh ] && exec ~/.config/wlogout/launch.sh || exec wlogout"])
+                                onClicked: Quickshell.execDetached(root.term("clipse", "Clipboard", ["clipse"]))
+                            }
+                        }
+
+                        // Updates: shown when packages are waiting
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: updates.panelScreen === barWindow.modelData
+                            visible: updates.count > 0 || open
+                            implicitWidth: root.vertical ? root.pillSize : updRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? updRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : updMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: updRow
+                                anchors.centerIn: parent
+                                rowSpacing: 4
+                                columnSpacing: 4
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: updates.updating ? "󰚰" : "󰏗"
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize + 1
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrAccent
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: updates.count
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
+                                }
+                            }
+                            MouseArea {
+                                id: updMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: updates.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // Failed systemd units: only shown when something failed
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: services.panelScreen === barWindow.modelData
+                            visible: services.count > 0 || open
+                            implicitWidth: root.vertical ? root.pillSize : svcRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? svcRow.implicitHeight + 12 : 24
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : Qt.alpha(root.clrUrgent, svcMouse.containsMouse ? 0.3 : 0.18)
+                            border.width: open ? 0 : 1
+                            border.color: root.clrUrgent
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: svcRow
+                                anchors.centerIn: parent
+                                rowSpacing: 4
+                                columnSpacing: 4
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: "󰒏"
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrUrgent
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: services.count
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
+                                }
+                            }
+                            MouseArea {
+                                id: svcMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: services.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // System stats: CPU / GPU / RAM (amber >= 70%, red >= 90%)
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: stats.panelScreen === barWindow.modelData
+                            implicitWidth: root.vertical ? root.pillSize : statRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? statRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : statMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: statRow
+                                anchors.centerIn: parent
+                                rowSpacing: 10
+                                columnSpacing: 10
+                                Repeater {
+                                    model: [["󰻠", stats.cpu]].concat(stats.gpu ? [["󰢮", stats.gpuUtil]] : []).concat([["󰍛", stats.mem]])
+                                    Text {
+                                        Layout.alignment: Qt.AlignCenter
+                                        required property var modelData
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: modelData[0] + (root.vertical ? "\n" : " ") + Math.round(modelData[1]) + "%"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: root.fontSize - 2
+                                        color: parent.parent.open ? root.clrOnAccentC
+                                             : modelData[1] >= 90 ? root.clrUrgent
+                                             : modelData[1] >= 70 ? root.clrAccent : root.clrFgMuted
+                                    }
+                                }
+                            }
+                            MouseArea {
+                                id: statMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: stats.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // Pinned tray apps: left = open, right = menu (in the tray panel), middle = secondary
+                        Repeater {
+                            model: tray.pinned
+
+                            IconImage {
+                                rotation: root.flip
+                                Layout.alignment: Qt.AlignCenter
+                                required property var modelData
+                                source: modelData.icon
+                                implicitSize: 16
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) tray.openMenu(barWindow.modelData, modelData)
+                                        else if (mouse.button === Qt.MiddleButton) modelData.secondaryActivate()
+                                        else tray.primary(barWindow.modelData, modelData)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Tray overflow button: opens the tray panel (unpinned apps live there)
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: tray.panelScreen === barWindow.modelData
+                            visible: tray.items.length > 0
+                            implicitWidth: root.vertical ? root.pillSize : ovRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? ovRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : ovMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: ovRow
+                                anchors.centerIn: parent
+                                rowSpacing: 4
+                                columnSpacing: 4
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: parent.parent.open ? "󰅃" : "󰅀"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: tray.unpinned.length > 0
+                                    text: tray.unpinned.length
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 2
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFgMuted
+                                }
+                            }
+                            MouseArea {
+                                id: ovMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: tray.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // Network: icon by connection type; warning badge when there's no internet
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: network.panelScreen === barWindow.modelData
+                            implicitWidth: root.vertical ? root.pillSize : netRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? netRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : netMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: netRow
+                                anchors.centerIn: parent
+                                rowSpacing: 3
+                                columnSpacing: 3
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: network.icon
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: parent.parent.open ? root.clrOnAccentC : network.linkUp ? root.clrFg : root.clrUrgent
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: network.linkUp && network.checks !== null && !network.online
+                                    text: "󰀦"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 1
+                                    color: root.clrUrgent
+                                }
+                            }
+                            MouseArea {
+                                id: netMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: network.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // Bluetooth: hidden without an adapter; shows connected-device count
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: bt.panelScreen === barWindow.modelData
+                            visible: bt.available
+                            implicitWidth: root.vertical ? root.pillSize : btRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? btRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC : btMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: btRow
+                                anchors.centerIn: parent
+                                rowSpacing: 3
+                                columnSpacing: 3
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: bt.icon
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: parent.parent.open ? root.clrOnAccentC : bt.powered ? root.clrFg : root.clrFgMuted
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: bt.connected.length > 1
+                                    text: bt.connected.length
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 2
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFgMuted
+                                }
+                            }
+                            MouseArea {
+                                id: btMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bt.togglePanel(barWindow.modelData)
+                            }
+                        }
+
+                        // Lock keys: only shown when unusual (Caps Lock on / Num Lock off)
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            visible: locks.caps || !locks.num
+                            implicitWidth: root.vertical ? root.pillSize : lockRow.implicitWidth + 14
+                            implicitHeight: root.vertical ? lockRow.implicitHeight + 12 : 22
+                            radius: Math.min(width, height) / 2
+                            color: root.clrTertC
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: lockRow
+                                anchors.centerIn: parent
+                                rowSpacing: 8
+                                columnSpacing: 8
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: locks.caps
+                                    text: root.vertical ? "󰪛" : "󰪛 CAPS"
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
+                                    color: root.clrOnTertC
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: !locks.num
+                                    text: root.vertical ? "󰎠" : "󰎠 NUM off"
+                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
+                                    color: root.clrOnTertC
+                                }
+                            }
+                        }
+
+                        // Keyboard layout: click = next layout · right-click = list · scroll = switch
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: keyboard.panelScreen === barWindow.modelData
+                            visible: keyboard.codes.length > 1
+                            implicitWidth: root.vertical ? root.pillSize : kbText.implicitWidth + 16
+                            implicitHeight: root.vertical ? kbText.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC
+                                 : keyboard.index > 0 ? root.clrTertC
+                                 : kbMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text {
+                                Layout.alignment: Qt.AlignCenter
+                                id: kbText
+                                anchors.centerIn: parent
+                                text: keyboard.short
+                                font.family: root.fontFamily
+                                font.pixelSize: root.fontSize - 1
+                                font.bold: true
+                                color: parent.open ? root.clrOnAccentC : keyboard.index > 0 ? root.clrOnTertC : root.clrFg
+                            }
+                            MouseArea {
+                                id: kbMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) keyboard.togglePanel(barWindow.modelData)
+                                    else keyboard.next()
+                                }
+                                onWheel: (wheel) => keyboard.next()
+                            }
+                        }
+
+                        // Volume: left-click = sound panel, middle = mute,
+                        // right-click = pavucontrol, scroll = ±5%
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            implicitWidth: root.vertical ? root.pillSize : volRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? volRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: audio.panelScreen === barWindow.modelData ? root.clrAccentC
+                                 : volMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: volRow
+                                anchors.centerIn: parent
+                                rowSpacing: 5
+                                columnSpacing: 5
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: audio.volIcon(audio.volume, audio.muted)
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 2
+                                    color: audio.panelScreen === barWindow.modelData ? root.clrOnAccentC
+                                         : audio.muted ? root.clrFgMuted : root.clrFg
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: Math.round(audio.volume * 100) + "%"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 1
+                                    color: audio.panelScreen === barWindow.modelData ? root.clrOnAccentC : root.clrFgMuted
+                                }
+                            }
+
+                            MouseArea {
+                                id: volMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.MiddleButton) audio.toggleMute(audio.sink)
+                                    else if (mouse.button === Qt.RightButton) audio.launch("pavucontrol")
+                                    else audio.togglePanel(barWindow.modelData)
+                                }
+                                onWheel: (wheel) => audio.step(wheel.angleDelta.y > 0 ? 0.05 : -0.05)
+                            }
+                        }
+
+                        // Night light: click = on/off, scroll = warmer/cooler
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            implicitWidth: root.vertical ? root.pillSize : nightRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? nightRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: night.enabled ? root.clrTertC
+                                 : nightMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: nightRow
+                                anchors.centerIn: parent
+                                rowSpacing: 5
+                                columnSpacing: 5
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: night.enabled ? "󰖔" : "󰖙"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: night.enabled ? root.clrOnTertC : root.clrFgMuted
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: !root.vertical && night.enabled && night.running && night.temperature < 6500
+                                    text: night.temperature + "K"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 1
+                                    color: root.clrOnTertC
+                                }
+                            }
+
+                            MouseArea {
+                                id: nightMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: night.toggle()
+                                onWheel: (wheel) => night.nudge(wheel.angleDelta.y > 0 ? 250 : -250)
                             }
                         }
 
                         // Bell: left-click = history panel, right-click = Do Not Disturb
                         Rectangle {
-                            implicitWidth: bellRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            implicitWidth: root.vertical ? root.pillSize : bellRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? bellRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
                             color: notifs.historyScreen === barWindow.modelData ? root.clrAccentC
                                  : bellMouse.containsMouse ? root.clrBgAlt : "transparent"
                             Behavior on color { ColorAnimation { duration: 150 } }
 
-                            RowLayout {
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                                 id: bellRow
                                 anchors.centerIn: parent
-                                spacing: 5
+                                rowSpacing: 5
+                                columnSpacing: 5
                                 Text {
+                                    Layout.alignment: Qt.AlignCenter
                                     text: notifs.dnd ? notifs.active.icon : (notifs.count > 0 ? "󰂞" : "󰂚")
                                     font.family: root.fontFamily
                                     font.pixelSize: root.fontSize + 2
@@ -670,12 +1275,14 @@ ShellRoot {
                                          : notifs.dnd ? root.clrAccent : root.clrFg
                                 }
                                 Rectangle {
+                                    Layout.alignment: Qt.AlignCenter
                                     visible: notifs.count > 0
                                     implicitWidth: Math.max(18, countText.implicitWidth + 10)
                                     implicitHeight: 18
                                     radius: 9
                                     color: root.clrAccent
                                     Text {
+                                        Layout.alignment: Qt.AlignCenter
                                         id: countText
                                         anchors.centerIn: parent
                                         text: notifs.count > 99 ? "99+" : notifs.count
@@ -700,455 +1307,29 @@ ShellRoot {
                             }
                         }
 
-                        // Night light: click = on/off, scroll = warmer/cooler
+                        // Power: opens the Material You power menu (same as SUPER + Esc)
                         Rectangle {
-                            implicitWidth: nightRow.implicitWidth + 16
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            implicitWidth: root.pillSize
                             implicitHeight: 26
-                            radius: 13
-                            color: night.enabled ? root.clrTertC
-                                 : nightMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            RowLayout {
-                                id: nightRow
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Text {
-                                    text: night.enabled ? "󰖔" : "󰖙"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 1
-                                    color: night.enabled ? root.clrOnTertC : root.clrFgMuted
-                                }
-                                Text {
-                                    visible: night.enabled && night.running && night.temperature < 6500
-                                    text: night.temperature + "K"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize - 1
-                                    color: root.clrOnTertC
-                                }
-                            }
-
-                            MouseArea {
-                                id: nightMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: night.toggle()
-                                onWheel: (wheel) => night.nudge(wheel.angleDelta.y > 0 ? 250 : -250)
-                            }
-                        }
-
-                        // Volume: left-click = sound panel, middle = mute,
-                        // right-click = pavucontrol, scroll = ±5%
-                        Rectangle {
-                            implicitWidth: volRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: audio.panelScreen === barWindow.modelData ? root.clrAccentC
-                                 : volMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            RowLayout {
-                                id: volRow
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Text {
-                                    text: audio.volIcon(audio.volume, audio.muted)
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 2
-                                    color: audio.panelScreen === barWindow.modelData ? root.clrOnAccentC
-                                         : audio.muted ? root.clrFgMuted : root.clrFg
-                                }
-                                Text {
-                                    text: Math.round(audio.volume * 100) + "%"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize - 1
-                                    color: audio.panelScreen === barWindow.modelData ? root.clrOnAccentC : root.clrFgMuted
-                                }
-                            }
-
-                            MouseArea {
-                                id: volMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: (mouse) => {
-                                    if (mouse.button === Qt.MiddleButton) audio.toggleMute(audio.sink)
-                                    else if (mouse.button === Qt.RightButton) audio.launch("pavucontrol")
-                                    else audio.togglePanel(barWindow.modelData)
-                                }
-                                onWheel: (wheel) => audio.step(wheel.angleDelta.y > 0 ? 0.05 : -0.05)
-                            }
-                        }
-
-                        // Keyboard layout: click = next layout · right-click = list · scroll = switch
-                        Rectangle {
-                            readonly property bool open: keyboard.panelScreen === barWindow.modelData
-                            visible: keyboard.codes.length > 1
-                            implicitWidth: kbText.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC
-                                 : keyboard.index > 0 ? root.clrTertC
-                                 : kbMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            radius: Math.min(width, height) / 2
+                            color: pwrMouse.containsMouse ? Qt.alpha(root.clrUrgent, 0.18) : "transparent"
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
-                                id: kbText
+                                Layout.alignment: Qt.AlignCenter
                                 anchors.centerIn: parent
-                                text: keyboard.short
+                                text: "󰐥"
                                 font.family: root.fontFamily
-                                font.pixelSize: root.fontSize - 1
-                                font.bold: true
-                                color: parent.open ? root.clrOnAccentC : keyboard.index > 0 ? root.clrOnTertC : root.clrFg
+                                font.pixelSize: root.fontSize + 2
+                                color: pwrMouse.containsMouse ? root.clrUrgent : root.clrFg
                             }
                             MouseArea {
-                                id: kbMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: (mouse) => {
-                                    if (mouse.button === Qt.RightButton) keyboard.togglePanel(barWindow.modelData)
-                                    else keyboard.next()
-                                }
-                                onWheel: (wheel) => keyboard.next()
-                            }
-                        }
-
-                        // Lock keys: only shown when unusual (Caps Lock on / Num Lock off)
-                        Rectangle {
-                            visible: locks.caps || !locks.num
-                            implicitWidth: lockRow.implicitWidth + 14
-                            implicitHeight: 22
-                            radius: 11
-                            color: root.clrTertC
-                            RowLayout {
-                                id: lockRow
-                                anchors.centerIn: parent
-                                spacing: 8
-                                Text {
-                                    visible: locks.caps
-                                    text: "󰪛 CAPS"
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
-                                    color: root.clrOnTertC
-                                }
-                                Text {
-                                    visible: !locks.num
-                                    text: "󰎠 NUM off"
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
-                                    color: root.clrOnTertC
-                                }
-                            }
-                        }
-
-                        // Bluetooth: hidden without an adapter; shows connected-device count
-                        Rectangle {
-                            readonly property bool open: bt.panelScreen === barWindow.modelData
-                            visible: bt.available
-                            implicitWidth: btRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC : btMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            RowLayout {
-                                id: btRow
-                                anchors.centerIn: parent
-                                spacing: 3
-                                Text {
-                                    text: bt.icon
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 1
-                                    color: parent.parent.open ? root.clrOnAccentC : bt.powered ? root.clrFg : root.clrFgMuted
-                                }
-                                Text {
-                                    visible: bt.connected.length > 1
-                                    text: bt.connected.length
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize - 2
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFgMuted
-                                }
-                            }
-                            MouseArea {
-                                id: btMouse
+                                id: pwrMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: bt.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Network: icon by connection type; warning badge when there's no internet
-                        Rectangle {
-                            readonly property bool open: network.panelScreen === barWindow.modelData
-                            implicitWidth: netRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC : netMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            RowLayout {
-                                id: netRow
-                                anchors.centerIn: parent
-                                spacing: 3
-                                Text {
-                                    text: network.icon
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 1
-                                    color: parent.parent.open ? root.clrOnAccentC : network.linkUp ? root.clrFg : root.clrUrgent
-                                }
-                                Text {
-                                    visible: network.linkUp && network.checks !== null && !network.online
-                                    text: "󰀦"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize - 1
-                                    color: root.clrUrgent
-                                }
-                            }
-                            MouseArea {
-                                id: netMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: network.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Tray overflow button: opens the tray panel (unpinned apps live there)
-                        Rectangle {
-                            readonly property bool open: tray.panelScreen === barWindow.modelData
-                            visible: tray.items.length > 0
-                            implicitWidth: ovRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC : ovMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            RowLayout {
-                                id: ovRow
-                                anchors.centerIn: parent
-                                spacing: 4
-                                Text {
-                                    text: parent.parent.open ? "󰅃" : "󰅀"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 1
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
-                                }
-                                Text {
-                                    visible: tray.unpinned.length > 0
-                                    text: tray.unpinned.length
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize - 2
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFgMuted
-                                }
-                            }
-                            MouseArea {
-                                id: ovMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: tray.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Pinned tray apps: left = open, right = menu (in the tray panel), middle = secondary
-                        Repeater {
-                            model: tray.pinned
-
-                            IconImage {
-                                required property var modelData
-                                source: modelData.icon
-                                implicitSize: 16
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: (mouse) => {
-                                        if (mouse.button === Qt.RightButton) tray.openMenu(barWindow.modelData, modelData)
-                                        else if (mouse.button === Qt.MiddleButton) modelData.secondaryActivate()
-                                        else tray.primary(barWindow.modelData, modelData)
-                                    }
-                                }
-                            }
-                        }
-
-                        // System stats: CPU / GPU / RAM (amber >= 70%, red >= 90%)
-                        Rectangle {
-                            readonly property bool open: stats.panelScreen === barWindow.modelData
-                            implicitWidth: statRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC : statMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            RowLayout {
-                                id: statRow
-                                anchors.centerIn: parent
-                                spacing: 10
-                                Repeater {
-                                    model: [["󰻠", stats.cpu]].concat(stats.gpu ? [["󰢮", stats.gpuUtil]] : []).concat([["󰍛", stats.mem]])
-                                    Text {
-                                        required property var modelData
-                                        text: modelData[0] + " " + Math.round(modelData[1]) + "%"
-                                        font.family: root.fontFamily
-                                        font.pixelSize: root.fontSize - 2
-                                        color: parent.parent.open ? root.clrOnAccentC
-                                             : modelData[1] >= 90 ? root.clrUrgent
-                                             : modelData[1] >= 70 ? root.clrAccent : root.clrFgMuted
-                                    }
-                                }
-                            }
-                            MouseArea {
-                                id: statMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: stats.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Failed systemd units: only shown when something failed
-                        Rectangle {
-                            readonly property bool open: services.panelScreen === barWindow.modelData
-                            visible: services.count > 0 || open
-                            implicitWidth: svcRow.implicitWidth + 16
-                            implicitHeight: 24
-                            radius: 12
-                            color: open ? root.clrAccentC : Qt.alpha(root.clrUrgent, svcMouse.containsMouse ? 0.3 : 0.18)
-                            border.width: open ? 0 : 1
-                            border.color: root.clrUrgent
-                            RowLayout {
-                                id: svcRow
-                                anchors.centerIn: parent
-                                spacing: 4
-                                Text {
-                                    text: "󰒏"
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrUrgent
-                                }
-                                Text {
-                                    text: services.count
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
-                                }
-                            }
-                            MouseArea {
-                                id: svcMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: services.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Updates: shown when packages are waiting
-                        Rectangle {
-                            readonly property bool open: updates.panelScreen === barWindow.modelData
-                            visible: updates.count > 0 || open
-                            implicitWidth: updRow.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: open ? root.clrAccentC : updMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            RowLayout {
-                                id: updRow
-                                anchors.centerIn: parent
-                                spacing: 4
-                                Text {
-                                    text: updates.updating ? "󰚰" : "󰏗"
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize + 1
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrAccent
-                                }
-                                Text {
-                                    text: updates.count
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2; font.bold: true
-                                    color: parent.parent.open ? root.clrOnAccentC : root.clrFg
-                                }
-                            }
-                            MouseArea {
-                                id: updMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: updates.togglePanel(barWindow.modelData)
-                            }
-                        }
-
-                        // Clipboard history (clipse, also SUPER + SHIFT + V)
-                        Rectangle {
-                            implicitWidth: 26
-                            implicitHeight: 26
-                            radius: 13
-                            color: clipMouse.containsMouse ? root.clrBgAlt : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: "󰅌"
-                                font.family: root.fontFamily
-                                font.pixelSize: root.fontSize + 1
-                                color: root.clrFg
-                            }
-                            MouseArea {
-                                id: clipMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: Quickshell.execDetached(root.term("clipse", "Clipboard", ["clipse"]))
-                            }
-                        }
-
-                        // Wallpaper picker and snapshots
-                        Repeater {
-                            model: [
-                                { icon: "󰸉", mod: wallpapers },
-                                { icon: "󰁯", mod: snapshots }
-                            ]
-                            Rectangle {
-                                required property var modelData
-                                readonly property bool open: modelData.mod.panelScreen === barWindow.modelData
-                                implicitWidth: 26
-                                implicitHeight: 26
-                                radius: 13
-                                color: open ? root.clrAccentC : iconMouse.containsMouse ? root.clrBgAlt : "transparent"
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.icon
-                                    font.family: root.fontFamily
-                                    font.pixelSize: root.fontSize + 1
-                                    color: parent.open ? root.clrOnAccentC : root.clrFg
-                                }
-                                MouseArea {
-                                    id: iconMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: modelData.mod.togglePanel(barWindow.modelData)
-                                }
-                            }
-                        }
-
-                        // Privacy: shown while an app uses the mic, camera or screen
-                        Rectangle {
-                            visible: privacy.active
-                            implicitWidth: privRow.implicitWidth + 16
-                            implicitHeight: 24
-                            radius: 12
-                            color: Qt.alpha(root.clrUrgent, 0.22)
-                            border.width: 1
-                            border.color: root.clrUrgent
-                            RowLayout {
-                                id: privRow
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text { visible: privacy.mic.length > 0; text: "󰍬"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
-                                Text { visible: privacy.camera.length > 0; text: "󰄀"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
-                                Text { visible: privacy.screen.length > 0; text: "󰹑"; font.family: root.fontFamily; font.pixelSize: root.fontSize; color: root.clrUrgent }
-                                Text {
-                                    Layout.maximumWidth: 160
-                                    text: privacy.apps.join(", ")
-                                    elide: Text.ElideRight
-                                    font.family: root.fontFamily; font.pixelSize: root.fontSize - 2
-                                    color: root.clrFg
-                                }
+                                onClicked: Quickshell.execDetached(["sh", "-c", "[ -x ~/.config/wlogout/launch.sh ] && exec ~/.config/wlogout/launch.sh || exec wlogout"])
                             }
                         }
                     }
