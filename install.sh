@@ -10,6 +10,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 TARGET="$CONF/quickshell"
 MODE="${1:-}"
+case "$MODE" in
+  ""|--deps|--check) ;;
+  -h|--help) sed -n '2,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  *) echo "Unknown option: $MODE (try --help)" >&2; exit 1 ;;
+esac
 
 bold() { printf '\e[1m%s\e[0m\n' "$*"; }
 ok()   { printf '  \e[32m✓\e[0m %s\n' "$*"; }
@@ -34,6 +39,8 @@ OPTIONAL=(
   "Timer alarm sound|sound-theme-freedesktop pipewire-audio|"
   "Polkit agent (Restart buttons in services panel)|hyprpolkitagent|"
   "Buttons: btop, nvtop, mixers, power menu, file manager|btop nvtop wiremix pavucontrol wlogout yazi|"
+  "Start menu: file search|fd fzf|"
+  "Start menu: search inside files|ripgrep|"
   "Clipboard history button|wl-clipboard|clipse"
 )
 
