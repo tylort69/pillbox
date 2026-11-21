@@ -1046,7 +1046,8 @@ Scope {
                                 // Take the click so it never reaches the item underneath (which would open it)
                                 gesturePolicy: TapHandler.WithinBounds
                                 grabPermissions: PointerHandler.TakeOverForbidden
-                                onTapped: { const run = modelData.run; sm.ctx = null; run(); search.forceActiveFocus() }
+                                // Read everything first: clearing sm.ctx destroys this delegate (and its scope)
+                                onTapped: { const run = modelData.run, field = search; sm.ctx = null; run(); field.forceActiveFocus() }
                             }
                         }
                     }

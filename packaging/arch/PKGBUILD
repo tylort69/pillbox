@@ -1,0 +1,66 @@
+# Maintainer: tylort69 <https://github.com/tylort69>
+pkgname=pillbox-git
+_pkgname=pillbox
+pkgver=r0.0000000
+pkgrel=1
+pkgdesc='Material You bar, start menu and notification center for Hyprland, built with Quickshell'
+arch=('any')
+url='https://github.com/tylort69/pillbox'
+license=('MIT')
+depends=(
+  'quickshell'
+  'hyprland'
+  'ttf-firacode-nerd'
+  'python'
+  'pipewire'
+  'wireplumber'
+  'libnotify'
+)
+makedepends=('git')
+optdepends=(
+  'fd: start menu file search'
+  'fzf: start menu fuzzy file ranking'
+  'ripgrep: start menu search inside files and logs'
+  'matugen: colours from your wallpaper'
+  'imagemagick: wallpaper picker thumbnails'
+  'hyprpaper: set wallpapers (swww, awww or swaybg also work)'
+  'pacman-contrib: updates panel (checkupdates)'
+  'hyprsunset: night light'
+  'bluez-utils: Bluetooth panel'
+  'iwd: Wi-Fi in the network panel'
+  'snapper: snapshots panel (btrfs)'
+  'nvidia-utils: NVIDIA GPU stats'
+  'sound-theme-freedesktop: timer alarm sound'
+  'pipewire-audio: timer alarm sound (pw-play)'
+  'hyprpolkitagent: restart buttons in the failed-services panel'
+  'btop: system stats button'
+  'nvtop: GPU stats button'
+  'wiremix: audio mixer button'
+  'pavucontrol: audio mixer button'
+  'wlogout: power menu'
+  'yazi: file manager button'
+  'wl-clipboard: copy addresses and clipboard history'
+)
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+install=pillbox.install
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+package() {
+  cd "$_pkgname"
+  # Quickshell finds configs in $XDG_CONFIG_DIRS/quickshell/<name>/, so this runs with `qs -c pillbox`.
+  # Settings are kept per user in ~/.config/pillbox/settings.json, so this folder can stay read-only.
+  local dest="$pkgdir/etc/xdg/quickshell/$_pkgname"
+  install -d "$dest/scripts" "$dest/matugen"
+  install -m644 ./*.qml "$dest/"
+  install -m755 scripts/* "$dest/scripts/"
+  install -m644 matugen/* "$dest/matugen/"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

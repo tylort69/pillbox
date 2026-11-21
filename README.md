@@ -103,7 +103,43 @@ Right-click anything to pin it, add it to a group, reorder it or run one of the 
 
 ## Install
 
-Pillbox is developed on Arch Linux with Hyprland 0.57 and Quickshell 0.3.2, and works with either `hyprland.conf` or the newer `hyprland.lua` config. On other distros, install the packages below with your package manager and run `./install.sh` without `--deps`.
+Pillbox is developed on Arch Linux with Hyprland 0.57 and Quickshell 0.3.2, and works with either `hyprland.conf` or the newer `hyprland.lua` config. There are two ways to install it.
+
+### Option 1: Arch package (recommended on Arch)
+
+The repo includes a `PKGBUILD` for `pillbox-git`. It builds a normal pacman package from the latest commit, so pacman tracks every file and `pacman -R pillbox-git` removes it cleanly. (It isn't on the AUR yet, because AUR registration is currently closed.)
+
+```bash
+git clone https://github.com/tylort69/pillbox
+cd pillbox/packaging/arch
+makepkg -si
+```
+
+The package installs to `/etc/xdg/quickshell/pillbox`, so Quickshell runs it by name. Start it from Hyprland, and tell `qs ipc` which config your keybinds talk to:
+
+```
+# hyprland.conf
+env = QS_CONFIG_NAME,pillbox
+exec-once = qs -c pillbox
+
+-- hyprland.lua
+hl.env("QS_CONFIG_NAME", "pillbox")
+hl.exec_cmd("qs -c pillbox")
+```
+
+For colours from your wallpaper, add this to `~/.config/matugen/config.toml`:
+
+```toml
+[templates.quickshell]
+input_path = "/etc/xdg/quickshell/pillbox/matugen/quickshell-colors.json"
+output_path = "~/.cache/quickshell-colors.json"
+```
+
+To update, rebuild the package with `makepkg -si` from the same folder. Restart the bar afterwards (`qs -c pillbox kill`, then start it again).
+
+### Option 2: git clone (any distro)
+
+On distros other than Arch, install the packages below with your package manager and run `./install.sh` without `--deps`.
 
 ```bash
 git clone https://github.com/tylort69/pillbox ~/.local/share/pillbox
@@ -117,7 +153,7 @@ cd ~/.local/share/pillbox
 2. Links `~/.config/quickshell` to the clone. If you already have a config there, it is moved to a `.bak-<date>` folder first.
 3. Adds the bar's colour template to `~/.config/matugen/config.toml`.
 
-Then start it from Hyprland, and remove any other bar or notification daemon you were starting:
+Then start it from Hyprland:
 
 ```
 # hyprland.conf
@@ -128,6 +164,8 @@ hl.exec_cmd("quickshell")
 ```
 
 To update, run `git pull`. Quickshell reloads the bar by itself.
+
+Whichever way you install it, remove any other bar or notification daemon you were starting.
 
 ## Dependencies
 
@@ -169,7 +207,7 @@ Without these the bar still runs; only the matching feature is missing (several 
 
 Most things are set from the panels themselves. Under the hood:
 
-- **`settings.json`** (created next to `shell.qml` the first time you change something) stores clocks, DND profiles, Pomodoro lengths, pinned tray items, bar position (`barPosition`: `top`/`bottom`/`left`/`right`, `barMirror`), start menu pins, groups and search settings (`startPins`, `startGroups`, `startSearchMode`, `startSearchContents`, `startSearchOptions`), `terminal` and `wallpaperDir`. Git ignores it, so `git pull` never touches your settings.
+- **`~/.config/pillbox/settings.json`** (created the first time you change something) stores clocks, DND profiles, Pomodoro lengths, pinned tray items, bar position (`barPosition`: `top`/`bottom`/`left`/`right`, `barMirror`), start menu pins, groups and search settings (`startPins`, `startGroups`, `startSearchMode`, `startSearchContents`, `startSearchOptions`), `terminal` and `wallpaperDir`. It lives outside the bar's own folder, so updates never touch it. Older versions kept it next to `shell.qml`; it's moved to the new place automatically.
 - **Colours**: `matugen/quickshell-colors.json` is the matugen template, written to `~/.cache/quickshell-colors.json`. The bar picks up changes live. Without matugen it uses a built-in palette.
 - **Wallpapers** are read from `~/Pictures/Wallpapers` (or `wallpaperDir`). Picking one runs `scripts/set-wallpaper.sh`, which sets the wallpaper with your daemon, points `~/.cache/current-wallpaper` at it (handy for hyprlock), then runs `~/.config/matugen/apply.sh` if you have one, or `matugen image` otherwise.
 - **Size, font, margins**: properties at the top of `shell.qml` (`barHeight`, `fontFamily`, `cornerRadius`, …).
@@ -178,7 +216,7 @@ Most things are set from the panels themselves. Under the hood:
 
 ## IPC
 
-Every panel can be driven from keybinds with `qs ipc call <target> <function>`:
+Every panel can be driven from keybinds with `qs ipc call <target> <function>`. If you installed the package, set `QS_CONFIG_NAME=pillbox` as shown in Install, or use `qs -c pillbox ipc call …`.
 
 | Target | Functions |
 |---|---|
@@ -207,7 +245,7 @@ bindel = , XF86AudioRaiseVolume, exec, qs ipc call audio up
 
 ## Troubleshooting
 
-- **Something looks wrong**: run `qs log`. Config errors show up there with a file and line number.
+- **Something looks wrong**: run `qs log` (`qs -c pillbox log` for the package). Config errors show up there with a file and line number.
 - **A pill is missing**: its optional package isn't installed. `./install.sh --check` lists what's missing.
 - **Notifications don't show up in Pillbox**: another daemon (mako, dunst, swaync) got the notification service first. Stop it, remove it from your autostart, and restart Quickshell.
 - **A panel opens on the wrong monitor**: panels opened through IPC follow Hyprland's focused monitor.

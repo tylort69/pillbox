@@ -96,10 +96,22 @@ ShellRoot {
         }
     }
 
-    // ── Settings: ~/.config/quickshell/settings.json (right-click the clock to toggle) ─
+    // ── Settings: ~/.config/pillbox/settings.json ─────────────────────────────
+    // Kept outside the config folder, so Pillbox can be installed read-only (e.g. a package in
+    // /usr/share/pillbox). Older versions saved settings.json next to shell.qml: on first start it
+    // is moved to the new place. The path is only set once that check is done.
+    readonly property string settingsDir: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/pillbox"
+    property string settingsPath: ""
+    Process {
+        running: true
+        command: ["sh", "-c", 'new="$1/settings.json"; old="$2/settings.json"; '
+                  + 'if [ ! -e "$new" ] && [ -f "$old" ] && [ -w "$2" ]; then mkdir -p "$1" && mv "$old" "$new"; fi; true',
+                  "sh", root.settingsDir, Quickshell.shellDir]
+        onExited: root.settingsPath = root.settingsDir + "/settings.json"
+    }
     FileView {
         id: settingsFile
-        path: Quickshell.shellDir + "/settings.json"
+        path: root.settingsPath
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: writeAdapter()

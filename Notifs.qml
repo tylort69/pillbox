@@ -8,7 +8,7 @@ import Quickshell.Services.Notifications
 
 // The bar is the notification daemon: pop-ups on the focused monitor, a history
 // panel opened from the bell, and Do Not Disturb profiles that allow notifications
-// per type and per app. Profiles live in ~/.config/quickshell/settings.json.
+// per type and per app. Profiles live in ~/.config/pillbox/settings.json.
 Scope {
     id: notifs
     required property var theme                // the ShellRoot

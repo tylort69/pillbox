@@ -1,0 +1,24 @@
+_note() {
+  cat <<'MSG'
+
+  Pillbox is installed. To finish setting it up:
+
+  1. Start it from Hyprland, and stop any other bar or notification daemon:
+       hyprland.conf:  exec-once = qs -c pillbox
+       hyprland.lua:   hl.exec_cmd("qs -c pillbox")
+
+  2. So `qs ipc call ...` keybinds reach Pillbox, also set:
+       hyprland.conf:  env = QS_CONFIG_NAME,pillbox
+       hyprland.lua:   hl.env("QS_CONFIG_NAME", "pillbox")
+
+  3. For colours from your wallpaper, add this to ~/.config/matugen/config.toml:
+       [templates.quickshell]
+       input_path = "/etc/xdg/quickshell/pillbox/matugen/quickshell-colors.json"
+       output_path = "~/.cache/quickshell-colors.json"
+
+  Your settings are saved in ~/.config/pillbox/settings.json.
+
+MSG
+}
+
+post_install() { _note; }

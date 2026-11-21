@@ -1,4 +1,5 @@
 # Add this to ~/.config/matugen/config.toml (install.sh does it for you).
+# Installed as a package? Use input_path = "/etc/xdg/quickshell/pillbox/matugen/quickshell-colors.json".
 [templates.quickshell]
 input_path = "~/.config/quickshell/matugen/quickshell-colors.json"
 output_path = "~/.cache/quickshell-colors.json"
