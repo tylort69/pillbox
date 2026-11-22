@@ -690,7 +690,8 @@ ShellRoot {
                             columnSpacing: 5
                             Text {
                                 Layout.alignment: Qt.AlignCenter
-                                text: countdown.mode === "pomodoro" && countdown.active ? countdown.phaseInfo[countdown.phase].icon : "󱎫"
+                                text: !countdown.active ? "󱎫" : countdown.mode === "pomodoro" ? countdown.phaseInfo[countdown.phase].icon
+                                    : countdown.mode === "alarm" ? "󰀠" : "󱎫"
                                 font.family: root.fontFamily
                                 font.pixelSize: root.fontSize + 1
                                 color: parent.parent.open ? root.clrOnAccentC

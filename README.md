@@ -51,7 +51,7 @@ Right-click anything to pin it, add it to a group, reorder it or run one of the 
 | ![System stats panel](screenshots/stats.png) | ![Sound panel](screenshots/audio.png) |
 | **System stats**: CPU, GPU, RAM and disk with live graphs | **Sound**: outputs, inputs and per-app volume |
 | ![Snapshots panel](screenshots/snapshots.png) | ![Timer panel](screenshots/timer.png) |
-| **Snapshots**: snapper history, diff, snapshot now, restore | **Timer / Pomodoro** with a progress ring |
+| **Snapshots**: snapper history, diff, snapshot now, restore | **Timer / Alarm / Pomodoro** with a progress ring |
 | ![Network panel](screenshots/network.png) | ![Bluetooth panel](screenshots/bluetooth.png) |
 | **Network**: connection checks, addresses (click to copy) and Wi-Fi networks | **Bluetooth**: connected, paired and nearby devices, with battery levels |
 | ![Updates panel](screenshots/updates.png) | ![Media panel](screenshots/media.png) |
@@ -82,7 +82,7 @@ Right-click anything to pin it, add it to a group, reorder it or run one of the 
 | **Start menu** | The Arch logo. All apps A–Z with icons; one search box for apps and every file and folder in your home (fuzzy, or regex with Ctrl+R). Ctrl+F also searches inside files and logs (your home, `/var/log`, plus a journal search). Ctrl+O sets which files (text, text + logs, or all), a size limit, hidden folders and the text file types. Hotbar with your default terminal, file manager and browser; pinned apps, files and folders; your own named groups. Right-click the logo for the power menu (wlogout) |
 | **Workspaces** | Each monitor's own workspaces with app icons; click or scroll to switch. Built for the [split-monitor-workspaces](https://github.com/zjeffer/split-monitor-workspaces) plugin (every monitor gets workspaces 1–10). Without the plugin it shows the workspaces on each monitor |
 | **Clock** | Local time plus an optional second time zone. Click for a calendar and settings |
-| **Timer / Pomodoro** | Countdown or Pomodoro cycles with a progress ring and an alarm. Middle-click pauses, right-click stops |
+| **Timer / Alarm / Pomodoro** | Countdown, an alarm for a clock time ("at 11:00", with an optional heads-up and label), or Pomodoro cycles, with a progress ring. Middle-click pauses, right-click stops |
 | **Media** | Now playing (MPRIS) with a player panel |
 | **Notifications** | A full notification daemon: popups, history, and Do-Not-Disturb profiles |
 | **Audio** | Volume with a mixer for each output, input and app. Scroll to change volume |
@@ -225,7 +225,7 @@ Every panel can be driven from keybinds with `qs ipc call <target> <function>`. 
 | `notifs` | `toggle`, `clear`, `cycle` (DND profiles), `profile <name>`, `off` |
 | `audio` | `toggle`, `up`, `down`, `mute` |
 | `media` | `toggle`, `playpause`, `next`, `previous` |
-| `timer` | `toggle`, `start <minutes>`, `pomodoro`, `pause`, `stop` |
+| `timer` | `toggle`, `start <minutes>`, `alarm <time>` (e.g. `11:00`, `7:45pm`), `pomodoro`, `pause`, `stop` |
 | `wallpaper` | `toggle`, `random` |
 | `keyboard` | `next` |
 | `bar` | `toggle` (settings panel), `position <top\|bottom\|left\|right>`, `mirror <true\|false>` |
