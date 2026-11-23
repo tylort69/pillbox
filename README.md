@@ -97,6 +97,7 @@ Right-click anything to pin it, add it to a group, reorder it or run one of the 
 | **Tray** | System tray; pin items to the bar |
 | **Privacy** | Shows when the mic or camera is in use, and by which app |
 | **Night light** | hyprsunset on/off, warmer/cooler |
+| **Pause auto-lock** | Keeps the screen from idle-locking for 15 min to 8 h, or until you turn it back on (Wayland idle inhibitor, works with hypridle). Right-click pauses or resumes |
 | **Lock keys** | Caps Lock / Num Lock indicators |
 | **Keybind cheat sheet** | Every Hyprland bind that has a description, searchable |
 | **Bar settings** | Put the bar on the top, bottom, left or right edge, and mirror the pill order |
@@ -230,6 +231,7 @@ Every panel can be driven from keybinds with `qs ipc call <target> <function>`. 
 | `keyboard` | `next` |
 | `bar` | `toggle` (settings panel), `position <top\|bottom\|left\|right>`, `mirror <true\|false>` |
 | `night` | `toggle`, `warmer`, `cooler` |
+| `autolock` | `toggle`, `pause <minutes>` (0 = until resumed), `resume`, `panel` |
 | `updates`, `services` | `toggle`, `check` |
 | `clock`, `stats`, `network`, `bluetooth`, `snapshots`, `tray` | `toggle` |
 

@@ -178,6 +178,13 @@ ShellRoot {
         settings: settings
     }
 
+    // ── Pause auto-lock: idle inhibitor, timed or until resumed (AutoLock.qml) ─
+    AutoLock {
+        id: autolock
+        theme: root
+        onPanelScreenChanged: if (panelScreen !== null) root.closeOthers(autolock)
+    }
+
     // ── Keybind cheat sheet: SUPER + / or SUPER + F1 (CheatSheet.qml) ────────
     CheatSheet {
         id: cheatsheet
@@ -295,7 +302,7 @@ ShellRoot {
         onPanelScreenChanged: if (panelScreen !== null) root.closeOthers(startMenu)
     }
 
-    readonly property var panels: [audio, clocks, media, tray, network, bt, stats, updates,
+    readonly property var panels: [audio, clocks, media, tray, autolock, network, bt, stats, updates,
                                    wallpapers, snapshots, services, countdown, keyboard, barSettings, startMenu]
     function closeOthers(keep) {
         if (keep !== notifs) notifs.historyScreen = null
@@ -1272,6 +1279,57 @@ ShellRoot {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: night.toggle()
                                 onWheel: (wheel) => night.nudge(wheel.angleDelta.y > 0 ? 250 : -250)
+                            }
+                        }
+
+                        // Auto-lock: click = pause menu, right-click = pause until resumed / turn back on
+                        Rectangle {
+                            rotation: root.flip
+                            Layout.alignment: Qt.AlignCenter
+                            readonly property bool open: autolock.panelScreen === barWindow.modelData
+                            implicitWidth: root.vertical ? root.pillSize : autolockRow.implicitWidth + 16
+                            implicitHeight: root.vertical ? autolockRow.implicitHeight + 12 : 26
+                            radius: Math.min(width, height) / 2
+                            color: open ? root.clrAccentC
+                                 : autolock.paused ? root.clrTertC
+                                 : autolockMouse.containsMouse ? root.clrBgAlt : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            GridLayout {
+                                Layout.alignment: Qt.AlignCenter
+                                flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
+                                id: autolockRow
+                                anchors.centerIn: parent
+                                rowSpacing: 5
+                                columnSpacing: 5
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    text: autolock.paused ? "󰌿" : "󰌾"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize + 1
+                                    color: parent.parent.open ? root.clrOnAccentC
+                                         : autolock.paused ? root.clrOnTertC : root.clrFgMuted
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignCenter
+                                    visible: !root.vertical && autolock.paused
+                                    text: autolock.until > 0 ? autolock.fmtLeft(autolock.left) : "∞"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.fontSize - 1
+                                    color: parent.parent.open ? root.clrOnAccentC : root.clrOnTertC
+                                }
+                            }
+
+                            MouseArea {
+                                id: autolockMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) autolock.toggle()
+                                    else autolock.togglePanel(barWindow.modelData)
+                                }
                             }
                         }
 
